@@ -46,9 +46,13 @@ extern elem * evalu8(elem *, goal_t goal);
 #define LLONGMASK       0xFFFFFFFFFFFFFFFFLL
 #define ZEROLL          0LL
 
+#define SMALL_MEMSET    128LL
+
 static bool again;
 static bool topair;
 static tym_t global_tyf;
+
+static symbol *memset_sym = NULL;
 
 /*****************************
  */
@@ -644,7 +648,30 @@ STATIC elem * elmemcmp(elem *e, goal_t goal)
 
 STATIC elem * elmemset(elem *e, goal_t goal)
 {
+    elem *enbytes = e->E2->E1;
+
     elem_debug(e);
+
+    if (enbytes->Eoper == OPconst && el_tolong(enbytes) < SMALL_MEMSET)
+    {
+        // Do not lower into a memset call if it's small enough
+    }
+    else
+    {
+        if (!memset_sym)
+        {
+            memset_sym = symbol_name("memset", SCglobal, type_fake(TYjfunc));
+            symbol_keep(memset_sym);
+        }
+
+        assert(memset_sym);
+
+        e = el_bin(OPparam, TYnptr, e->E2, e->E1);
+        e = el_bin(OPcall, TYnptr, el_var(memset_sym), e);
+
+        return e;
+    }
+
     if (OPTIMIZER)
     {
         elem *ex = e->E1;
