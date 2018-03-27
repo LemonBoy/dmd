@@ -4673,20 +4673,30 @@ void loaddata(CodeBuilder& cdb,elem *e,regm_t *pretregs)
             if (reg >= XMM0)
             {   /* This comes about because 0, 1, pi, etc., constants don't get stored
                  * in the data segment, because they are x87 opcodes.
-                 * Not so efficient. We should at least do a PXOR for 0.
                  */
                 unsigned r;
                 targ_size_t value = e->EV.Vuns;
                 if (sz == 8)
                     value = e->EV.Vullong;
-                regwithvalue(cdb,ALLREGS, value,&r,flags);
-                flags = 0;                          // flags are already set
-                cdb.genfltreg(0x89,r,0);            // MOV floatreg,r
-                if (sz == 8)
-                    code_orrex(cdb.last(), REX_W);
-                assert(sz == 4 || sz == 8);         // float or double
-                unsigned op = xmmload(tym);
-                cdb.genxmmreg(op,reg,0,tym);        // MOVSS/MOVSD XMMreg,floatreg
+                if (value != 0)
+                {
+                    regwithvalue(cdb,ALLREGS, value,&r,flags);
+                    flags = 0;                          // flags are already set
+                    cdb.genfltreg(0x89,r,0);            // MOV floatreg,r
+                    if (sz == 8)
+                        code_orrex(cdb.last(), REX_W);
+                    assert(sz == 4 || sz == 8);         // float or double
+                    unsigned op = xmmload(tym);
+                    cdb.genxmmreg(op,reg,0,tym);        // MOVSS/MOVSD XMMreg,floatreg
+                }
+                else
+                {
+                    cdb.gen2(PXOR,modregxrmx(3, reg-XMM0, reg-XMM0));
+                    // Enable the use of the other half of the XMM set
+                    if (I64 && reg > XMM7)
+                        code_orrex(cdb.last(), REX_R);
+                    checkSetVex(cdb.last(), tym);
+                }
             }
             else
             {
